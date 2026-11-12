@@ -2264,6 +2264,54 @@ test.serial(
 		t.is(outcome.finalText, "the real answer");
 	},
 );
+
+test.serial(
+	"an unclosed XML call to an offered tool goes back to the model",
+	async (t) => {
+		const replies = ["<read_file><path>a.ts</path>", "the real answer"];
+		const seen: Message[][] = [];
+		const client = {
+			getCurrentModel: () => "fake-model",
+			setModel: () => undefined,
+			getContextSize: () => 100_000,
+			getAvailableModels: async () => ["fake-model"],
+			getProviderConfig: () => ({}) as never,
+			clearContext: async () => undefined,
+			getTimeout: () => undefined,
+			chat: async (messages: Message[]) => {
+				seen.push(messages);
+				const content = replies[seen.length - 1];
+				return {
+					choices: [{ message: { role: "assistant", content } }],
+					toolsDisabled: true,
+				} as LLMChatResponse;
+			},
+		} as unknown as LLMClient;
+		const toolManager = makeFakeToolManager({
+			knownTools: new Set(["read_file"]),
+		});
+
+		const outcome = await runPlainConversation({
+			client,
+			toolManager,
+			systemMessage: SYSTEM,
+			initialMessages: [USER],
+			developmentMode: "auto-accept",
+			nonInteractiveAlwaysAllow: [],
+			abortSignal: new AbortController().signal,
+			outputFormat: "json",
+		});
+
+		t.is(outcome.kind, "success");
+		t.is(seen.length, 2);
+		const feedback = seen[1][seen[1].length - 1];
+		t.true(
+			String(feedback.content).includes(
+				"Incomplete tool call: <read_file> is never closed with </read_file>",
+			),
+		);
+	},
+);
 test("plain runs do not force a walkthrough by default", async t => {
 	let callCount = 0;
 	const client = {

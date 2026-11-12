@@ -1095,6 +1095,46 @@ test.serial('processAssistantResponse - malformed-XML cap stops the loop after M
 	t.truthy(giveUpMessage, 'Should queue a give-up ErrorMessage when cap is hit');
 });
 
+test.serial('processAssistantResponse - an unclosed XML call to an offered tool goes back to the model', async t => {
+	const seen: Message[][] = [];
+	const replies = ['<read_file><path>/test/file.txt</path>', 'Done.'];
+	const client = {
+		chat: async (msgs: Message[]): Promise<LLMChatResponse> => {
+			seen.push(msgs);
+			return {
+				choices: [
+					{
+						message: {
+							role: 'assistant',
+							content: replies[seen.length - 1] ?? 'Done.',
+							tool_calls: undefined,
+						},
+					},
+				],
+				toolsDisabled: true,
+			};
+		},
+	};
+
+	await processAssistantResponse(
+		createDefaultParams({
+			client,
+			messages: [{role: 'user', content: 'Read /test/file.txt'}],
+			toolManager: createMockToolManager({tools: ['read_file']}),
+		}),
+	);
+
+	// Before, the raw XML became the final reply and the turn ended.
+	t.is(seen.length, 2);
+	const feedback = seen[1][seen[1].length - 1];
+	t.is(feedback.role, 'user');
+	t.true(
+		String(feedback.content).includes(
+			'Incomplete tool call: <read_file> is never closed with </read_file>',
+		),
+	);
+});
+
 test.serial('processAssistantResponse - empty-turn cap stops the loop after MAX_EMPTY_TURNS', async t => {
 	let chatCallCount = 0;
 	const queuedComponents: any[] = [];

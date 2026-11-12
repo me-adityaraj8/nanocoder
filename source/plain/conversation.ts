@@ -460,7 +460,7 @@ async function runPlainConversationBody(
 
 		const xmlParse =
 			result.toolsDisabled && !finalTurn
-				? parseToolCalls(fullContent)
+				? parseToolCalls(fullContent, availableNames)
 				: {
 						success: true as const,
 						toolCalls: [],

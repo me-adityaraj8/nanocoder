@@ -462,7 +462,7 @@ export const processAssistantResponse = async (
 	const hasNativeToolCalls = !!toolCalls && toolCalls.length > 0;
 	let parseResult: ReturnType<typeof parseToolCalls>;
 	if (result.toolsDisabled) {
-		parseResult = parseToolCalls(fullContent);
+		parseResult = parseToolCalls(fullContent, availableNames);
 	} else if (hasNativeToolCalls) {
 		parseResult = {
 			success: true as const,
@@ -470,7 +470,7 @@ export const processAssistantResponse = async (
 			cleanedContent: stripEmbeddedToolCallText(fullContent),
 		};
 	} else {
-		parseResult = parseToolCalls(fullContent);
+		parseResult = parseToolCalls(fullContent, availableNames);
 	}
 
 	// Notify the user once per session when the XML fallback path is active
